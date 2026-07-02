@@ -24,9 +24,8 @@ final class ErrorHandlerWhoopsServiceProvider extends AbstractServiceProvider im
     private const string EXTENSION_NAME = 'error-handler-whoops';
 
     public function __construct(
-        private readonly string $root,
-        private readonly bool $debug,
-        private readonly string $errorsFallbackPath,
+        private readonly bool $debug = false,
+        private readonly ?string $errorsFallbackPath = null,
     ) {}
 
     public function provides(string $id): bool
@@ -69,7 +68,7 @@ final class ErrorHandlerWhoopsServiceProvider extends AbstractServiceProvider im
 
             $whoops->register();
         } catch (Throwable) {
-            $this->restoreEarlyHandlers($container, $whoops);
+            $this->restoreEarlyHandlers($whoops);
         }
 
         EventDispatcherResolver::optional($container)?->dispatch(new ExtensionAwakened(
@@ -116,12 +115,12 @@ final class ErrorHandlerWhoopsServiceProvider extends AbstractServiceProvider im
         });
     }
 
-    private function restoreEarlyHandlers(ContainerInterface $container, Whoops $whoops): void
+    private function restoreEarlyHandlers(Whoops $whoops): void
     {
         $whoops->clearHandlers();
 
         if (!$this->isCli()) {
-            $whoops->appendHandler(new EarlyBootstrapFallbackHandler($this->root));
+            $whoops->appendHandler(new EarlyBootstrapFallbackHandler($this->errorsFallbackPath));
         } elseif ($this->debug) {
             $whoops->appendHandler(new PrettyPageHandler());
         } else {

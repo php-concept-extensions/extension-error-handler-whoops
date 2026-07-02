@@ -2,6 +2,7 @@
 
 namespace Concept\Extensions\ErrorHandlerWhoops\Handlers;
 
+use Concept\Core\Container\ContainerDependency;
 use Concept\Extensions\ErrorHandlerWhoops\ContainerResolver;
 use Concept\Extensions\Http\Contracts\ResponseFactoryInterface;
 use Concept\Extensions\Http\Protocol\HttpStatusCode;
@@ -11,7 +12,6 @@ use Concept\Extensions\View\Contracts\ViewInterface;
 use Laminas\HttpHandlerRunner\Emitter\SapiEmitter;
 use Psr\Container\ContainerInterface;
 use Psr\Http\Message\ServerRequestInterface;
-use RuntimeException;
 use Throwable;
 use Whoops\Handler\Handler;
 
@@ -28,7 +28,7 @@ final class ProductionErrorHandler extends Handler
 
     public function __construct(
         private readonly ContainerInterface $container,
-        private readonly string $fallbackPath,
+        private readonly ?string $fallbackPath = null,
     ) {}
 
     public function handle(): int
@@ -52,7 +52,7 @@ final class ProductionErrorHandler extends Handler
                     exit;
                 }
             } catch (Throwable $e) {
-                $this->renderFallback($this->fallbackPath, $code, $e);
+                $this->renderFallback($code, $e, $this->fallbackPath);
 
                 exit;
             }
@@ -69,7 +69,7 @@ final class ProductionErrorHandler extends Handler
         try {
             echo $this->renderErrorPage($exception, $code);
         } catch (Throwable $e) {
-            $this->renderFallback($this->fallbackPath, $code, $e);
+            $this->renderFallback($code, $e, $this->fallbackPath);
         }
 
         exit;
@@ -91,12 +91,7 @@ final class ProductionErrorHandler extends Handler
 
     private function renderErrorPage(Throwable $exception, int $code): string
     {
-        /** @var ViewInterface|null $view */
-        $view = ContainerResolver::tryGet($this->container, ViewInterface::class);
-
-        if ($view === null) {
-            throw new RuntimeException('View services are not available.');
-        }
+        $view = ContainerDependency::get($this->container, ViewInterface::class);
 
         $template = sprintf(self::TEMPLATE_ERROR_FORMAT, $code);
         try {
@@ -108,8 +103,12 @@ final class ProductionErrorHandler extends Handler
         }
     }
 
-    private function renderFallback(string $fallbackPath, int $code, Throwable $exception): void
+    private function renderFallback(int $code, Throwable $exception, ?string $fallbackPath = null): void
     {
+        if (!is_string($fallbackPath)) {
+            return;
+        }
+
         /** @var LoggerInterface|null $logger */
         $logger = ContainerResolver::tryGet($this->container, LoggerInterface::class);
         $logger?->exception($exception);

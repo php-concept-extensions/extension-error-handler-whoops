@@ -10,7 +10,7 @@ use Whoops\Run as Whoops;
 
 final class EarlyWhoopsBootstrap
 {
-    public static function register(string $root): Whoops
+    public static function register(?string $errorsFallbackPath = null): Whoops
     {
         if (ob_get_level() === 0) {
             ob_start();
@@ -25,7 +25,7 @@ final class EarlyWhoopsBootstrap
         } elseif (PHP_SAPI === 'cli') {
             $whoops->pushHandler(new PlainTextHandler());
         } else {
-            $whoops->pushHandler(new EarlyBootstrapFallbackHandler($root));
+            $whoops->pushHandler(new EarlyBootstrapFallbackHandler($errorsFallbackPath));
         }
 
         $whoops->pushHandler(new PhpErrorLogHandler());
