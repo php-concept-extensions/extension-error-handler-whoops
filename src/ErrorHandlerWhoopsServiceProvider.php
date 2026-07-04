@@ -2,8 +2,10 @@
 
 namespace Concept\Extensions\ErrorHandlerWhoops;
 
+use Concept\Extensions\ErrorHandlerWhoops\Contracts\ExceptionReporterInterface;
+use Concept\Extensions\ErrorHandlerWhoops\Contracts\HttpErrorRendererInterface;
 use Concept\Extensions\ErrorHandlerWhoops\Handlers\EarlyBootstrapFallbackHandler;
-use Concept\Extensions\ErrorHandlerWhoops\Handlers\ErrorLogHandler;
+use Concept\Extensions\ErrorHandlerWhoops\Handlers\HttpErrorRendererHandler;
 use Concept\Extensions\ErrorHandlerWhoops\Handlers\PhpErrorLogHandler;
 use Concept\Extensions\Event\Events\ExtensionAwakened;
 use Concept\Extensions\Event\Support\EventDispatcherResolver;
@@ -11,6 +13,7 @@ use League\Container\ServiceProvider\AbstractServiceProvider;
 use League\Container\ServiceProvider\BootableServiceProviderInterface;
 use Psr\Container\ContainerInterface;
 use Throwable;
+use Whoops\Handler\Handler;
 use Whoops\Handler\PlainTextHandler;
 use Whoops\Handler\PrettyPageHandler;
 use Whoops\Run as Whoops;
@@ -22,6 +25,8 @@ final class ErrorHandlerWhoopsServiceProvider extends AbstractServiceProvider im
     public function __construct(
         private readonly bool $debug = false,
         private readonly ?string $errorsFallbackPath = null,
+        private readonly ?ExceptionReporterInterface $exceptionReporter = null,
+        private readonly ?HttpErrorRendererInterface $httpErrorRenderer = null,
     ) {}
 
     public function provides(string $id): bool
@@ -59,21 +64,18 @@ final class ErrorHandlerWhoopsServiceProvider extends AbstractServiceProvider im
     {
         $whoops->clearHandlers();
 
-        $whoops->appendHandler(function(Throwable $exception): int {
-            $handler = new PhpErrorLogHandler();
-            $handler->setException($exception);
+        if ($this->exceptionReporter !== null) {
+            $reporter = $this->exceptionReporter;
+            $whoops->appendHandler(function(Throwable $exception) use ($reporter): int {
+                $reporter->report($exception);
 
-            return $handler->handle();
-        });
+                return Handler::DONE;
+            });
+        }
 
-        $whoops->appendHandler(function(Throwable $exception) use ($container): int {
-            $handler = new ErrorLogHandler($container);
-            $handler->setException($exception);
-
-            return $handler->handle();
-        });
-
-        if ($this->debug) {
+        if (!$this->isCli() && $this->httpErrorRenderer !== null) {
+            $whoops->appendHandler(new HttpErrorRendererHandler($this->httpErrorRenderer, $container));
+        } elseif ($this->debug) {
             $whoops->appendHandler($this->isCli() ? new PlainTextHandler() : new PrettyPageHandler());
         }
 
