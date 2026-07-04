@@ -17,7 +17,6 @@ final class EarlyWhoopsBootstrap
         }
 
         $debug = ($_ENV['APP_DEBUG'] ?? 'false') === 'true';
-
         $whoops = new Whoops();
 
         if ($debug) {

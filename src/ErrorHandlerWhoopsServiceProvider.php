@@ -5,16 +5,12 @@ namespace Concept\Extensions\ErrorHandlerWhoops;
 use Concept\Extensions\ErrorHandlerWhoops\Handlers\EarlyBootstrapFallbackHandler;
 use Concept\Extensions\ErrorHandlerWhoops\Handlers\ErrorLogHandler;
 use Concept\Extensions\ErrorHandlerWhoops\Handlers\PhpErrorLogHandler;
-use Concept\Extensions\ErrorHandlerWhoops\Handlers\ProductionErrorHandler;
 use Concept\Extensions\Event\Events\ExtensionAwakened;
 use Concept\Extensions\Event\Support\EventDispatcherResolver;
-use Concept\Extensions\Http\Requests\RequestFormat;
 use League\Container\ServiceProvider\AbstractServiceProvider;
 use League\Container\ServiceProvider\BootableServiceProviderInterface;
 use Psr\Container\ContainerInterface;
-use Psr\Http\Message\ServerRequestInterface;
 use Throwable;
-use Whoops\Handler\JsonResponseHandler;
 use Whoops\Handler\PlainTextHandler;
 use Whoops\Handler\PrettyPageHandler;
 use Whoops\Run as Whoops;
@@ -48,27 +44,9 @@ final class ErrorHandlerWhoopsServiceProvider extends AbstractServiceProvider im
         }
 
         try {
-            $whoops->clearHandlers();
-
-            $whoops->appendHandler(function(Throwable $exception): int {
-                $handler = new PhpErrorLogHandler();
-                $handler->setException($exception);
-
-                return $handler->handle();
-            });
-
-            $whoops->appendHandler(function(Throwable $exception) use ($container): int {
-                $handler = new ErrorLogHandler($container);
-                $handler->setException($exception);
-
-                return $handler->handle();
-            });
-
-            $this->registerRenderHandlers($container, $whoops);
-
-            $whoops->register();
+            $this->registerAwakeHandlers($whoops, $container);
         } catch (Throwable) {
-            $this->restoreEarlyHandlers($whoops);
+            $this->registerEarlyHandlers($whoops);
         }
 
         EventDispatcherResolver::optional($container)?->dispatch(new ExtensionAwakened(
@@ -77,45 +55,32 @@ final class ErrorHandlerWhoopsServiceProvider extends AbstractServiceProvider im
         ));
     }
 
-    private function registerRenderHandlers(ContainerInterface $container, Whoops $whoops): void
+    private function registerAwakeHandlers(Whoops $whoops, ContainerInterface $container): void
     {
-        /** @var ServerRequestInterface|null $request */
-        $request = ContainerResolver::tryGet($container, ServerRequestInterface::class);
-        /** @var RequestFormat|null $requestFormat */
-        $requestFormat = ContainerResolver::tryGet($container, RequestFormat::class);
+        $whoops->clearHandlers();
 
-        if ($request !== null && $requestFormat !== null && $requestFormat->expectsJson($request)) {
-            $whoops->appendHandler(new JsonResponseHandler());
-
-            return;
-        }
-
-        $this->registerHandlers($container, $whoops);
-    }
-
-    private function registerHandlers(ContainerInterface $container, Whoops $whoops): void
-    {
-        if ($this->isCli()) {
-            $whoops->appendHandler(new PlainTextHandler());
-
-            return;
-        }
-
-        if ($this->debug) {
-            $whoops->appendHandler(new PrettyPageHandler());
-
-            return;
-        }
-
-        $whoops->appendHandler(function(Throwable $exception) use ($container): int {
-            $handler = new ProductionErrorHandler($container, $this->errorsFallbackPath);
+        $whoops->appendHandler(function(Throwable $exception): int {
+            $handler = new PhpErrorLogHandler();
             $handler->setException($exception);
 
             return $handler->handle();
         });
+
+        $whoops->appendHandler(function(Throwable $exception) use ($container): int {
+            $handler = new ErrorLogHandler($container);
+            $handler->setException($exception);
+
+            return $handler->handle();
+        });
+
+        if ($this->debug) {
+            $whoops->appendHandler($this->isCli() ? new PlainTextHandler() : new PrettyPageHandler());
+        }
+
+        $whoops->register();
     }
 
-    private function restoreEarlyHandlers(Whoops $whoops): void
+    private function registerEarlyHandlers(Whoops $whoops): void
     {
         $whoops->clearHandlers();
 

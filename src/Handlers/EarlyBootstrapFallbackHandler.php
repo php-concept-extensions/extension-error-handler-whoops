@@ -28,7 +28,7 @@ final class EarlyBootstrapFallbackHandler extends Handler
         $fallbackFile = sprintf(
             self::FALLBACK_FILE_FORMAT,
             $this->fallbackPath,
-            HttpStatusCode::INTERNAL_SERVER_ERROR
+            HttpStatusCode::INTERNAL_SERVER_ERROR,
         );
         if (file_exists($fallbackFile)) {
             include $fallbackFile;
