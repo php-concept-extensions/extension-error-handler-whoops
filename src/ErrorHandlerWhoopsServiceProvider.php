@@ -2,6 +2,7 @@
 
 namespace Concept\Extensions\ErrorHandlerWhoops;
 
+use Closure;
 use Concept\Extensions\ErrorHandlerWhoops\Contracts\ExceptionReporterInterface;
 use Concept\Extensions\ErrorHandlerWhoops\Contracts\HttpErrorRendererInterface;
 use Concept\Extensions\ErrorHandlerWhoops\Handlers\EarlyBootstrapFallbackHandler;
@@ -22,11 +23,15 @@ final class ErrorHandlerWhoopsServiceProvider extends AbstractServiceProvider im
 {
     private const string EXTENSION_NAME = 'error-handler-whoops';
 
+    /**
+     * @param Closure(): ExceptionReporterInterface|null $exceptionReporter
+     * @param Closure(): HttpErrorRendererInterface|null $httpErrorRenderer
+     */
     public function __construct(
         private readonly bool $debug = false,
         private readonly ?string $errorsFallbackPath = null,
-        private readonly ?ExceptionReporterInterface $exceptionReporter = null,
-        private readonly ?HttpErrorRendererInterface $httpErrorRenderer = null,
+        private readonly ?Closure $exceptionReporter = null,
+        private readonly ?Closure $httpErrorRenderer = null,
     ) {}
 
     public function provides(string $id): bool
@@ -65,16 +70,22 @@ final class ErrorHandlerWhoopsServiceProvider extends AbstractServiceProvider im
         $whoops->clearHandlers();
 
         if ($this->exceptionReporter !== null) {
-            $reporter = $this->exceptionReporter;
-            $whoops->appendHandler(function(Throwable $exception) use ($reporter): int {
-                $reporter->report($exception);
+            $exceptionReporter = $this->exceptionReporter;
+            $whoops->appendHandler(function(Throwable $exception) use ($exceptionReporter): int {
+                $exceptionReporter()->report($exception);
 
                 return Handler::DONE;
             });
         }
 
         if (!$this->isCli() && $this->httpErrorRenderer !== null) {
-            $whoops->appendHandler(new HttpErrorRendererHandler($this->httpErrorRenderer, $container));
+            $httpErrorRenderer = $this->httpErrorRenderer;
+            $whoops->appendHandler(function(Throwable $exception) use ($httpErrorRenderer, $container): int {
+                $handler = new HttpErrorRendererHandler($httpErrorRenderer(), $container);
+                $handler->setException($exception);
+
+                return $handler->handle();
+            });
         } elseif ($this->debug) {
             $whoops->appendHandler($this->isCli() ? new PlainTextHandler() : new PrettyPageHandler());
         }
