@@ -78,6 +78,13 @@ final class ErrorHandlerWhoopsServiceProvider extends AbstractServiceProvider im
             });
         }
 
+        if ($this->debug) {
+            $whoops->appendHandler($this->isCli() ? new PlainTextHandler() : new PrettyPageHandler());
+            $whoops->register();
+
+            return;
+        }
+
         if (!$this->isCli() && $this->httpErrorRenderer !== null) {
             $httpErrorRenderer = $this->httpErrorRenderer;
             $whoops->appendHandler(function(Throwable $exception) use ($httpErrorRenderer, $container): int {
@@ -86,8 +93,6 @@ final class ErrorHandlerWhoopsServiceProvider extends AbstractServiceProvider im
 
                 return $handler->handle();
             });
-        } elseif ($this->debug) {
-            $whoops->appendHandler($this->isCli() ? new PlainTextHandler() : new PrettyPageHandler());
         }
 
         $whoops->register();
