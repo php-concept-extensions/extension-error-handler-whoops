@@ -13,6 +13,10 @@ use Whoops\Handler\Handler;
 
 final class HttpErrorRendererHandler extends Handler
 {
+    private const int MIN_ERROR_CODE = 400;
+    private const int MAX_ERROR_CODE = 599;
+    private const int DEFAULT_ERROR_CODE = HttpStatusCode::INTERNAL_SERVER_ERROR;
+
     public function __construct(
         private readonly HttpErrorRendererInterface $httpErrorRenderer,
         private readonly ContainerInterface $container,
@@ -44,12 +48,15 @@ final class HttpErrorRendererHandler extends Handler
     private function resolveStatusCode(Throwable $exception): int
     {
         $code = $exception->getCode();
-
-        if ($code >= 400 && $code <= 599) {
-            return $code;
+        if (method_exists($exception, 'getStatusCode')) {
+            $code = $exception->getStatusCode();
         }
 
-        return HttpStatusCode::INTERNAL_SERVER_ERROR;
+        if (!is_numeric($code) || $code < self::MIN_ERROR_CODE || $code > self::MAX_ERROR_CODE) {
+            $code = self::DEFAULT_ERROR_CODE;
+        }
+
+        return (int) $code;
     }
 
     private function emit(ResponseInterface $response): void
