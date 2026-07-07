@@ -7,9 +7,7 @@ use Whoops\Handler\Handler;
 
 final class EarlyBootstrapFallbackHandler extends Handler
 {
-    private const string FALLBACK_FILE_PATH = '%s/resources/views/errors/fallback/500.php';
-
-    public function __construct(private readonly string $rootPath) {}
+    public function __construct(private readonly string $errorsFallbackFilePath) {}
 
     public function handle(): int
     {
@@ -21,9 +19,8 @@ final class EarlyBootstrapFallbackHandler extends Handler
             ob_end_clean();
         }
 
-        $fallbackFile = sprintf(self::FALLBACK_FILE_PATH, $this->rootPath);
-        if (file_exists($fallbackFile)) {
-            include $fallbackFile;
+        if (file_exists($this->errorsFallbackFilePath)) {
+            include $this->errorsFallbackFilePath;
         }
 
         return Handler::QUIT;

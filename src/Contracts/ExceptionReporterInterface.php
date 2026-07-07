@@ -6,5 +6,5 @@ use Throwable;
 
 interface ExceptionReporterInterface
 {
-    public function report(Throwable $exception): void;
+    public function report(Throwable $exception, string $uri = '', bool $bootstrap = false): void;
 }
