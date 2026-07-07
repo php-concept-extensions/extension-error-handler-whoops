@@ -13,6 +13,7 @@ use Concept\Extensions\Event\Support\EventDispatcherResolver;
 use League\Container\ServiceProvider\AbstractServiceProvider;
 use League\Container\ServiceProvider\BootableServiceProviderInterface;
 use Psr\Container\ContainerInterface;
+use Psr\Http\Message\ServerRequestInterface;
 use Throwable;
 use Whoops\Handler\Handler;
 use Whoops\Handler\PlainTextHandler;
@@ -22,6 +23,7 @@ use Whoops\Run as Whoops;
 final class ErrorHandlerWhoopsServiceProvider extends AbstractServiceProvider implements BootableServiceProviderInterface
 {
     private const string EXTENSION_NAME = 'error-handler-whoops';
+    private const string REQUEST_FORMAT_CLASS = 'Concept\Extensions\Http\Requests\RequestFormat';
 
     /**
      * @param Closure(): ExceptionReporterInterface|null $exceptionReporter
@@ -78,24 +80,41 @@ final class ErrorHandlerWhoopsServiceProvider extends AbstractServiceProvider im
             });
         }
 
-        if ($this->debug) {
-            $whoops->appendHandler($this->isCli() ? new PlainTextHandler() : new PrettyPageHandler());
+        if ($this->isCli()) {
+            $whoops->appendHandler(new PlainTextHandler());
             $whoops->register();
 
             return;
         }
 
-        if (!$this->isCli() && $this->httpErrorRenderer !== null) {
+        if ($this->httpErrorRenderer !== null && (!$this->debug || self::requestExpectsJson($container))) {
             $httpErrorRenderer = $this->httpErrorRenderer;
-            $whoops->appendHandler(function(Throwable $exception) use ($httpErrorRenderer, $container): int {
-                $handler = new HttpErrorRendererHandler($httpErrorRenderer(), $container);
-                $handler->setException($exception);
+            $whoops->appendHandler(new HttpErrorRendererHandler($httpErrorRenderer, $container));
+            $whoops->register();
 
-                return $handler->handle();
-            });
+            return;
+        }
+
+        if ($this->debug) {
+            $whoops->appendHandler(new PrettyPageHandler());
         }
 
         $whoops->register();
+    }
+
+    private static function requestExpectsJson(ContainerInterface $container): bool
+    {
+        $request = ContainerResolver::tryGet($container, ServerRequestInterface::class);
+        if (!$request instanceof ServerRequestInterface) {
+            return false;
+        }
+
+        $requestFormat = ContainerResolver::tryGet($container, self::REQUEST_FORMAT_CLASS);
+        if ($requestFormat === null || !method_exists($requestFormat, 'expectsJson')) {
+            return false;
+        }
+
+        return $requestFormat->expectsJson($request);
     }
 
     private function registerEarlyHandlers(Whoops $whoops): void

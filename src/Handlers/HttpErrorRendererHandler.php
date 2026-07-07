@@ -2,6 +2,7 @@
 
 namespace Concept\Extensions\ErrorHandlerWhoops\Handlers;
 
+use Closure;
 use Concept\Extensions\ErrorHandlerWhoops\ContainerResolver;
 use Concept\Extensions\ErrorHandlerWhoops\Contracts\HttpErrorRendererInterface;
 use Concept\Extensions\Http\Protocol\HttpStatusCode;
@@ -17,8 +18,11 @@ final class HttpErrorRendererHandler extends Handler
     private const int MAX_ERROR_CODE = 599;
     private const int DEFAULT_ERROR_CODE = HttpStatusCode::INTERNAL_SERVER_ERROR;
 
+    /**
+     * @param Closure(): HttpErrorRendererInterface $httpErrorRenderer
+     */
     public function __construct(
-        private readonly HttpErrorRendererInterface $httpErrorRenderer,
+        private readonly Closure $httpErrorRenderer,
         private readonly ContainerInterface $container,
     ) {}
 
@@ -32,7 +36,7 @@ final class HttpErrorRendererHandler extends Handler
             }
 
             $exception = $this->getException();
-            $response = $this->httpErrorRenderer->render(
+            $response = ($this->httpErrorRenderer)()->render(
                 $request,
                 $this->resolveStatusCode($exception),
                 $exception->getMessage(),
@@ -61,9 +65,15 @@ final class HttpErrorRendererHandler extends Handler
 
     private function emit(ResponseInterface $response): void
     {
-        if (!headers_sent()) {
-            http_response_code($response->getStatusCode());
+        $statusCode = $response->getStatusCode();
+        $run = $this->getRun();
+        if ($run !== null) {
+            $run->sendHttpCode($statusCode);
+        } elseif (!headers_sent()) {
+            http_response_code($statusCode);
+        }
 
+        if (!headers_sent()) {
             foreach ($response->getHeaders() as $name => $values) {
                 foreach ($values as $value) {
                     header(sprintf('%s: %s', $name, $value), false);
