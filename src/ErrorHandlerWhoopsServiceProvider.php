@@ -50,7 +50,6 @@ final class ErrorHandlerWhoopsServiceProvider extends AbstractServiceProvider im
         }
 
         try {
-            die('1');
             $whoops->clearHandlers();
 
             $whoops->appendHandler(function(Throwable $exception): int {

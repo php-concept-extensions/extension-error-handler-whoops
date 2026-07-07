@@ -2,16 +2,15 @@
 
 namespace Concept\Extensions\ErrorHandlerWhoops;
 
-use Concept\Extensions\ErrorHandlerWhoops\Contracts\ExceptionReporterInterface;
 use Concept\Extensions\ErrorHandlerWhoops\Handlers\EarlyBootstrapFallbackHandler;
-use Concept\Extensions\ErrorHandlerWhoops\Handlers\PhpErrorLogHandler;
+use Whoops\Handler\Handler;
 use Whoops\Handler\PlainTextHandler;
 use Whoops\Handler\PrettyPageHandler;
 use Whoops\Run as Whoops;
 
 final class EarlyWhoopsBootstrap
 {
-    public static function register(?string $errorsFallbackFilePath, ?ExceptionReporterInterface $phpErrorLogWriter): Whoops
+    public static function register(?string $errorsFallbackFilePath, ?Handler $logHandler = null): Whoops
     {
         if (ob_get_level() === 0) {
             ob_start();
@@ -31,8 +30,8 @@ final class EarlyWhoopsBootstrap
             }
         }
 
-        if (!is_null($phpErrorLogWriter)) {
-            $whoops->pushHandler(new PhpErrorLogHandler($phpErrorLogWriter));
+        if ($logHandler !== null) {
+            $whoops->pushHandler($logHandler);
         }
 
         $whoops->register();
