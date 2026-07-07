@@ -2,20 +2,19 @@
 
 namespace Concept\Extensions\ErrorHandlerWhoops;
 
-use Closure;
-use Concept\Extensions\ErrorHandlerWhoops\Contracts\ExceptionReporterInterface;
-use Concept\Extensions\ErrorHandlerWhoops\Contracts\HttpErrorRendererInterface;
 use Concept\Extensions\ErrorHandlerWhoops\Handlers\EarlyBootstrapFallbackHandler;
-use Concept\Extensions\ErrorHandlerWhoops\Handlers\HttpErrorRendererHandler;
+use Concept\Extensions\ErrorHandlerWhoops\Handlers\ErrorLogHandler;
 use Concept\Extensions\ErrorHandlerWhoops\Handlers\PhpErrorLogHandler;
+use Concept\Extensions\ErrorHandlerWhoops\Handlers\ProductionErrorHandler;
 use Concept\Extensions\Event\Events\ExtensionAwakened;
 use Concept\Extensions\Event\Support\EventDispatcherResolver;
+use Concept\Extensions\Http\Requests\RequestFormat;
 use League\Container\ServiceProvider\AbstractServiceProvider;
 use League\Container\ServiceProvider\BootableServiceProviderInterface;
 use Psr\Container\ContainerInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Throwable;
-use Whoops\Handler\Handler;
+use Whoops\Handler\JsonResponseHandler;
 use Whoops\Handler\PlainTextHandler;
 use Whoops\Handler\PrettyPageHandler;
 use Whoops\Run as Whoops;
@@ -23,12 +22,7 @@ use Whoops\Run as Whoops;
 final class ErrorHandlerWhoopsServiceProvider extends AbstractServiceProvider implements BootableServiceProviderInterface
 {
     private const string EXTENSION_NAME = 'error-handler-whoops';
-    private const string REQUEST_FORMAT_CLASS = 'Concept\Extensions\Http\Requests\RequestFormat';
 
-    /**
-     * @param Closure(): ExceptionReporterInterface|null $exceptionReporter
-     * @param Closure(): HttpErrorRendererInterface|null $httpErrorRenderer
-     */
     public function __construct(
         private readonly bool $debug = false,
         private readonly ?string $errorsFallbackPath = null,
@@ -56,9 +50,27 @@ final class ErrorHandlerWhoopsServiceProvider extends AbstractServiceProvider im
         }
 
         try {
-            $this->registerAwakeHandlers($whoops, $container);
+            $whoops->clearHandlers();
+
+            $whoops->appendHandler(function(Throwable $exception): int {
+                $handler = new PhpErrorLogHandler();
+                $handler->setException($exception);
+
+                return $handler->handle();
+            });
+
+            $whoops->appendHandler(function(Throwable $exception) use ($container): int {
+                $handler = new ErrorLogHandler($container);
+                $handler->setException($exception);
+
+                return $handler->handle();
+            });
+
+            $this->registerRenderHandlers($container, $whoops);
+
+            $whoops->register();
         } catch (Throwable) {
-            $this->registerEarlyHandlers($whoops);
+            $this->restoreEarlyHandlers($container, $whoops);
         }
 
         EventDispatcherResolver::optional($container)?->dispatch(new ExtensionAwakened(
@@ -67,62 +79,50 @@ final class ErrorHandlerWhoopsServiceProvider extends AbstractServiceProvider im
         ));
     }
 
-    private function registerAwakeHandlers(Whoops $whoops, ContainerInterface $container): void
+    private function registerRenderHandlers(ContainerInterface $container, Whoops $whoops): void
     {
-        $whoops->clearHandlers();
+        /** @var ServerRequestInterface|null $request */
+        $request = ContainerResolver::tryGet($container, ServerRequestInterface::class);
+        /** @var RequestFormat|null $requestFormat */
+        $requestFormat = ContainerResolver::tryGet($container, RequestFormat::class);
 
-        if ($this->exceptionReporter !== null) {
-            $exceptionReporter = $this->exceptionReporter;
-            $whoops->appendHandler(function(Throwable $exception) use ($exceptionReporter): int {
-                $exceptionReporter()->report($exception);
-
-                return Handler::DONE;
-            });
-        }
-
-        if ($this->isCli()) {
-            $whoops->appendHandler(new PlainTextHandler());
-            $whoops->register();
+        if ($request !== null && $requestFormat !== null && $requestFormat->expectsJson($request)) {
+            $whoops->appendHandler(new JsonResponseHandler());
 
             return;
         }
 
-        if ($this->httpErrorRenderer !== null && (!$this->debug || self::requestExpectsJson($container))) {
-            $httpErrorRenderer = $this->httpErrorRenderer;
-            $whoops->appendHandler(new HttpErrorRendererHandler($httpErrorRenderer, $container));
-            $whoops->register();
+        $this->registerHandlers($container, $whoops);
+    }
+
+    private function registerHandlers(ContainerInterface $container, Whoops $whoops): void
+    {
+        if ($this->isCli()) {
+            $whoops->appendHandler(new PlainTextHandler());
 
             return;
         }
 
         if ($this->debug) {
             $whoops->appendHandler(new PrettyPageHandler());
+
+            return;
         }
 
-        $whoops->register();
+        $whoops->appendHandler(function(Throwable $exception) use ($container): int {
+            $handler = new ProductionErrorHandler($container, $this->errorsFallbackPath);
+            $handler->setException($exception);
+
+            return $handler->handle();
+        });
     }
 
-    private static function requestExpectsJson(ContainerInterface $container): bool
-    {
-        $request = ContainerResolver::tryGet($container, ServerRequestInterface::class);
-        if (!$request instanceof ServerRequestInterface) {
-            return false;
-        }
-
-        $requestFormat = ContainerResolver::tryGet($container, self::REQUEST_FORMAT_CLASS);
-        if ($requestFormat === null || !method_exists($requestFormat, 'expectsJson')) {
-            return false;
-        }
-
-        return $requestFormat->expectsJson($request);
-    }
-
-    private function registerEarlyHandlers(Whoops $whoops): void
+    private function restoreEarlyHandlers(ContainerInterface $container, Whoops $whoops): void
     {
         $whoops->clearHandlers();
 
         if (!$this->isCli()) {
-            $whoops->appendHandler(new EarlyBootstrapFallbackHandler($this->errorsFallbackPath));
+            $whoops->appendHandler(new EarlyBootstrapFallbackHandler($this->root));
         } elseif ($this->debug) {
             $whoops->appendHandler(new PrettyPageHandler());
         } else {

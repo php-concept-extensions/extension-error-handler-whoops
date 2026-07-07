@@ -1,6 +1,7 @@
 {
     "name": "php-concept/extension-error-handler-whoops",
     "description": "Concept Error Handler extension — Whoops integration",
+    "version": "1.0.0",
     "type": "library",
     "license": "MIT",
     "autoload": {
@@ -11,7 +12,9 @@
     "require": {
         "php": "^8.4",
         "filp/whoops": "^2.18",
-        "php-concept/core-2": "^1.0",
+        "laminas/laminas-httphandlerrunner": "^2.13",
+        "php-concept/extension-http": "^1.0",
+        "php-concept/extension-view": "^1.0",
         "php-concept/extension-logger-monolog": "^1.0",
         "php-concept/extension-event": "^1.0",
         "league/container": "^5.1",
