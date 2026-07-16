@@ -92,8 +92,23 @@ final class ErrorHandlerWhoopsServiceProvider extends AbstractServiceProvider im
      */
     private function buildHandlers(): array
     {
+        $container = $this->getContainer();
+        $uriFactory = static function() use ($container): string {
+            if ($container->has(ServerRequestInterface::class)) {
+                return ContainerDependency::get($container, ServerRequestInterface::class)
+                    ->getUri()
+                    ->getPath();
+            }
+
+            if (isset($_SERVER['REQUEST_URI']) && is_string($_SERVER['REQUEST_URI'])) {
+                return $_SERVER['REQUEST_URI'];
+            }
+
+            return '';
+        };
+
         $handlers = [
-            new ReportExceptionHandler($this->sharedExceptionReporterFactory),
+            new ReportExceptionHandler($this->sharedExceptionReporterFactory, $uriFactory),
         ];
 
         if (PHP_SAPI === 'cli') {
@@ -112,7 +127,6 @@ final class ErrorHandlerWhoopsServiceProvider extends AbstractServiceProvider im
             }
         }
 
-        $container = $this->getContainer();
         $handlers[] = new RenderHttpErrorHandler(
             $this->sharedHttpErrorRendererFactory,
             static function() use ($container): ?ServerRequestInterface {
