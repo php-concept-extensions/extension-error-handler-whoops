@@ -1,7 +1,6 @@
 {
     "name": "php-concept/extension-error-handler-whoops",
     "description": "Concept Error Handler extension — Whoops integration",
-    "version": "1.0.0",
     "type": "library",
     "license": "MIT",
     "autoload": {
