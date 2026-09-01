@@ -1,6 +1,6 @@
 {
     "name": "php-concept/extension-error-handler-whoops",
-    "description": "Concept Error Handler extension — Whoops integration",
+    "description": "Concept Error Handler extension \u2014 Whoops integration",
     "type": "library",
     "license": "MIT",
     "autoload": {
@@ -17,5 +17,16 @@
         "psr/event-dispatcher": "^1.0",
         "psr/container": "^2.0",
         "psr/http-message": "^2.0"
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Tests\\": "tests/"
+        }
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^11"
+    },
+    "scripts": {
+        "test": "vendor/bin/phpunit"
     }
 }
