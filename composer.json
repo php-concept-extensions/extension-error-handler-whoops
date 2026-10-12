@@ -1,0 +1,21 @@
+{
+    "name": "php-concept/extension-error-handler-whoops",
+    "description": "Concept Error Handler extension \u2014 Whoops integration",
+    "type": "library",
+    "license": "MIT",
+    "autoload": {
+        "psr-4": {
+            "Concept\\Extensions\\ErrorHandlerWhoops\\": "src/"
+        }
+    },
+    "require": {
+        "php": "^8.4",
+        "filp/whoops": "^2.18",
+        "php-concept/core-2": "^1.0",
+        "php-concept/extension-event": "^1.0",
+        "league/container": "^5.1",
+        "psr/event-dispatcher": "^1.0",
+        "psr/container": "^2.0",
+        "psr/http-message": "^2.0"
+    }
+}
