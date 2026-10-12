@@ -64,13 +64,7 @@ final class RenderHttpErrorHandler extends Handler
 
     private function emit(ResponseInterface $response): void
     {
-        $statusCode = $response->getStatusCode();
-        $run = $this->getRun();
-        if ($run !== null) {
-            $run->sendHttpCode($statusCode);
-        } elseif (!headers_sent()) {
-            http_response_code($statusCode);
-        }
+        $this->getRun()->sendHttpCode($response->getStatusCode());
 
         if (!headers_sent()) {
             foreach ($response->getHeaders() as $name => $values) {
