@@ -12,6 +12,7 @@ use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\ServerRequestInterface;
 use RuntimeException;
 use Whoops\Handler\Handler;
+use Whoops\Run;
 
 final class ReportExceptionHandlerTest extends TestCase
 {
@@ -80,6 +81,7 @@ final class RenderHttpErrorHandlerTest extends TestCase
             }
         };
         $handler->setException($exception);
+        $handler->setRun(new Run());
 
         $this->assertSame(Handler::QUIT, $handler->handle());
     }
